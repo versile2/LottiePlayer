@@ -13,12 +13,12 @@ public class LottieAnimationOptions
     /// <summary>
     /// The default CDN URL of the Lottie JavaScript library.
     /// </summary>
-    public const string DefaultLottieSourceJs = "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.13.0/lottie.min.js";
+    public static readonly string DefaultLottieSourceJs = "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.13.0/lottie.min.js";
 
     /// <summary>
     /// The Subresource Integrity hash of the file at <see cref="DefaultLottieSourceJs"/>.
     /// </summary>
-    public const string DefaultLottieSourceJsIntegrity = "sha512-uOtp2vx2X/5+tLBEf5UoQyqwAkFZJBM5XwGa7BfXDnWR+wdpRvlSVzaIVcRe3tGNsStu6UMDCeXKEnr4IBT8gA==";
+    public static readonly string DefaultLottieSourceJsIntegrity = "sha512-uOtp2vx2X/5+tLBEf5UoQyqwAkFZJBM5XwGa7BfXDnWR+wdpRvlSVzaIVcRe3tGNsStu6UMDCeXKEnr4IBT8gA==";
 
     private string? _lottieSourceJsIntegrity;
 
@@ -29,7 +29,11 @@ public class LottieAnimationOptions
     /// <remarks>
     /// <para>When not set, the hash of the default CDN file is used only while <see cref="LottieSourceJs"/> is
     /// still the default URL; a different <see cref="LottieSourceJs"/> is loaded without integrity checking.</para>
-    /// <para>Set to an empty string to turn integrity checking off. If the check fails, the local copy is used.</para>
+    /// <para>Set to an empty string to turn integrity checking off. Set to <c>null</c> to restore the automatic default
+    /// described above. If the check fails, the local copy is used.</para>
+    /// <para>A non-empty integrity makes the loader set <c>crossorigin="anonymous"</c> on the script, so a custom
+    /// <see cref="LottieSourceJs"/> host must send CORS headers (<c>Access-Control-Allow-Origin</c>); otherwise the
+    /// browser blocks the script and the bundled local copy is used. Same-origin URLs are unaffected.</para>
     /// </remarks>
     public string? LottieSourceJsIntegrity
     {
