@@ -21,10 +21,12 @@ public class CoalesceReinitTests : BunitTest
             ParameterView.FromDictionary(new Dictionary<string, object?> { ["Src"] = src })));
 
         var first = Change("https://example.com/b.json");
-        await Task.Delay(30); // the b re-init holds the lock and is awaiting JS
+        // the b re-init holds the lock once it has torn down the first animation; it then waits on ReleaseB
+        await WaitUntilAsync(() => js.Destroyed == 1);
         var second = Change("https://example.com/c.json");
         var third = Change("https://example.com/d.json");
-        await Task.WhenAll(first, second, third);
+        js.ReleaseB.SetResult();
+        await Task.WhenAll(first, second, third).WaitAsync(TimeSpan.FromSeconds(10));
 
         // initial + the in-flight rebuild + at most one coalesced rebuild
         js.Created.Should().BeLessThanOrEqualTo(3);
@@ -32,9 +34,21 @@ public class CoalesceReinitTests : BunitTest
         (js.Created - js.Destroyed).Should().Be(1, "only the live animation is left");
     }
 
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("condition not reached");
+            await Task.Delay(5);
+        }
+    }
+
     private sealed class CountingJs : IJSRuntime
     {
         public int Created, Destroyed;
+        private int _inits;
+        public readonly TaskCompletionSource ReleaseB = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly System.Collections.Concurrent.ConcurrentQueue<string?> PathQueue = new();
         public IEnumerable<string?> Paths => PathQueue;
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => InvokeAsync<TValue>(identifier, CancellationToken.None, args);
@@ -48,7 +62,11 @@ public class CoalesceReinitTests : BunitTest
         }
         private async Task<IJSObjectReference?> Init(string? path)
         {
-            await Task.Delay(100);
+            if (Interlocked.Increment(ref _inits) == 2) // the first re-init (b) blocks until the test releases it
+            {
+                await ReleaseB.Task;
+            }
+            else await Task.Delay(100);
             Interlocked.Increment(ref Created);
             PathQueue.Enqueue(path);
             var anim = new Mock<IJSObjectReference>();
